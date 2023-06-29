@@ -1,11 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_camera_sample/app.dart';
+import 'package:flutter_camera_sample/camera/camera_config.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // override用
+  final cameraController = await CameraConfig.getCameraController();
+
   runApp(
-    const ProviderScope(
-      child: App(),
+    ProviderScope(
+      overrides: [
+        cameraControllerProvider.overrideWith(
+          (_) => cameraController,
+        ),
+      ],
+      child: const App(),
     ),
   );
 }

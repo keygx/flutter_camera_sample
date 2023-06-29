@@ -1,19 +1,26 @@
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_camera_sample/camera/camera_config.dart';
+import 'package:flutter_camera_sample/camera/zoom/camera_zoom_state.dart';
 import 'package:flutter_camera_sample/image_viewer.dart';
 import 'package:flutter_camera_sample/loading_hud.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:screenshot/screenshot.dart';
 
-class CameraPreviewPage extends HookConsumerWidget {
-  const CameraPreviewPage({
-    super.key,
-  });
+class CameraPreviewPage extends StatefulHookConsumerWidget {
+  const CameraPreviewPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CameraPreviewPage> createState() => _CameraPreviewPageState();
+}
+
+class _CameraPreviewPageState extends ConsumerState<CameraPreviewPage> {
+  final screenshotController = ScreenshotController();
+
+  @override
+  Widget build(BuildContext context) {
     final cameraController = ref.watch(cameraControllerProvider);
-    final screenshotController = ScreenshotController();
+    final cameraZoomState = ref.watch(cameraZoomStateProvider.notifier);
 
     return LoadingHUD(
       child: Scaffold(
@@ -22,29 +29,33 @@ class CameraPreviewPage extends HookConsumerWidget {
         ),
         body: Container(
           color: Colors.black,
-          child: cameraController.when(
-            data: (data) => Center(
-              child: Screenshot(
-                controller: screenshotController,
-                child: CameraPreview(data),
+          child: Center(
+            child: Screenshot(
+              controller: screenshotController,
+              child: CameraPreview(
+                cameraController,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onScaleStart: (_) {
+                    cameraZoomState.updateScale();
+                  },
+                  onScaleUpdate: (ScaleUpdateDetails details) {
+                    cameraZoomState.updateZoomLevel(
+                      cameraController,
+                      details.scale,
+                    );
+                  },
+                ),
               ),
-            ),
-            error: (err, stack) => Text('Error: $err'),
-            loading: () => const Center(
-              child: CircularProgressIndicator(),
             ),
           ),
         ),
-        floatingActionButton: cameraController.when(
-          data: (controller) => FloatingActionButton(
-            onPressed: () {
-              ref.watch(loadingHUDStateProvider.notifier).state = true;
-              onPressSilentShotButton(context, ref, screenshotController);
-            },
-            child: const Icon(Icons.camera_alt_rounded),
-          ),
-          error: (err, stack) => Text('Error: $err'),
-          loading: () => Container(),
+        floatingActionButton: FloatingActionButton(
+          onPressed: () {
+            ref.watch(loadingHUDStateProvider.notifier).state = true;
+            onPressSilentShotButton(context, ref, screenshotController);
+          },
+          child: const Icon(Icons.camera_alt_rounded),
         ),
       ),
     );
@@ -77,21 +88,3 @@ class CameraPreviewPage extends HookConsumerWidget {
     });
   }
 }
-
-final cameraControllerProvider =
-    FutureProvider.autoDispose<CameraController>((ref) async {
-  final cameras = await availableCameras();
-  final cameraController = CameraController(
-    cameras.first,
-    ResolutionPreset.max,
-    enableAudio: false,
-    imageFormatGroup: ImageFormatGroup.bgra8888,
-  );
-
-  ref.onDispose(() {
-    cameraController.dispose();
-  });
-
-  await cameraController.initialize();
-  return cameraController;
-});
